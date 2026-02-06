@@ -1,4 +1,4 @@
-from core.settings import settings
+from app.core.settings import settings
 
 from sqlalchemy import Column, Integer, String
 

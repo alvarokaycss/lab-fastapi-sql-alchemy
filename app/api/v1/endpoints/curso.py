@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import text
 
-from models.curso_model import CursoModel
-from schemas.curso_schema import CursoSchema
-from core.settings import get_session
+from app.models.curso_model import CursoModel
+from app.schemas.curso_schema import CursoSchema
+from app.core.dependencies import get_session
 
 
 router = APIRouter(prefix='/cursos', tags=['cursos'])
@@ -25,22 +25,19 @@ router = APIRouter(prefix='/cursos', tags=['cursos'])
 async def testar_db(db: AsyncSession = Depends(get_session)):
     try:
         await db.execute(text("SELECT 1"))
-        return {"message": "Conexão com banco de dados estabelecida com sucesso"}
+        return {"mensagem": "Conexão com banco de dados estabelecida com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao conectar ao banco de dados: {e}")
-    
-    
+
+
 # POST curso
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=CursoSchema)
-async def post_curso(curso: CursoModel, db: AsyncSession = Depends(get_session)):
-    novo_curso = CursoModel(
-        titulo=curso.titulo,
-        aulas=curso.aulas,
-        horas=curso.horas
-    )
+async def post_curso(curso: CursoSchema, db: AsyncSession = Depends(get_session)):
+    novo_curso = CursoModel(**curso.model_dump())
 
     db.add(novo_curso)
     await db.commit()
+    await db.refresh(novo_curso)
 
     return novo_curso
 
@@ -53,7 +50,7 @@ async def get_cursos(db: AsyncSession = Depends(get_session)):
         result = await session.execute(query)
         cursos: List[CursoModel] = result.scalars().all()
 
-        return cursos
+        return [CursoSchema.from_orm(curso) for curso in cursos]
 
 
 # GET curso
@@ -67,12 +64,12 @@ async def get_curso(curso_id: int, db: AsyncSession = Depends(get_session)):
         if curso is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Curso não encontrado")
         
-        return curso
+        return CursoSchema.from_orm(curso)
     
 
 # PUT curso
 @router.put("/{curso_id}", response_model=CursoSchema, status_code=status.HTTP_202_ACCEPTED)
-async def put_curso(curso_id: int, curso: CursoModel, db: AsyncSession = Depends(get_session)):
+async def put_curso(curso_id: int, curso: CursoSchema, db: AsyncSession = Depends(get_session)):
     async with db as session:
         query = select(CursoModel).filter(CursoModel.id == curso_id)
         result = await session.execute(query)
@@ -87,7 +84,7 @@ async def put_curso(curso_id: int, curso: CursoModel, db: AsyncSession = Depends
         
         await session.commit()
         
-        return curso_up
+        return CursoSchema.from_orm(curso_up)
     
     
 # DELETE curso
